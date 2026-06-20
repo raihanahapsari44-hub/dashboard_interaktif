@@ -1,508 +1,648 @@
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font-sans); }
-
-@media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
-}
-
-.dash { padding: 1.5rem 1rem; }
-
-.header { margin-bottom: 1.5rem; position: relative; }
-.header h1 {
-  font-size: 21px; font-weight: 600; color: var(--color-text-primary);
-  letter-spacing: -0.01em;
-}
-.header p { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
-.header-bar {
-  height: 3px; width: 0; margin-top: 10px; border-radius: 2px;
-  background: linear-gradient(90deg, #378ADD 0%, #1D9E75 50%, #D85A30 100%);
-  transition: width 1.1s cubic-bezier(.22,.61,.36,1);
-}
-.header-bar.grow { width: 64px; }
-
-.section-title {
-  font-size: 12px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase;
-  letter-spacing: 0.07em; margin: 2rem 0 0.75rem; display: flex; align-items: center; gap: 8px;
-  opacity: 0; transform: translateY(6px); transition: opacity .5s ease, transform .5s ease;
-}
-.section-title.visible { opacity: 1; transform: translateY(0); }
-.section-title::before {
-  content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--dot-color, #378ADD);
-  flex-shrink: 0; transform: scale(0); transition: transform .4s cubic-bezier(.34,1.56,.64,1) .15s;
-}
-.section-title.visible::before { transform: scale(1); }
-
-/* --- Era filter (segmented control with sliding pill) --- */
-.tab-group {
-  position: relative; display: inline-flex; gap: 2px; margin-bottom: 1.25rem; flex-wrap: wrap;
-  padding: 3px; background: var(--color-background-secondary); border-radius: 22px;
-}
-.tab-pill {
-  position: absolute; top: 3px; bottom: 3px; left: 3px; width: 0; border-radius: 18px;
-  background: linear-gradient(135deg, #378ADD, #534AB7);
-  box-shadow: 0 2px 8px rgba(55,138,221,0.35);
-  transition: left .38s cubic-bezier(.22,.61,.36,1), width .38s cubic-bezier(.22,.61,.36,1);
-  z-index: 0;
-}
-.tab {
-  position: relative; z-index: 1; font-size: 12.5px; font-weight: 500; padding: 6px 14px; border-radius: 18px;
-  border: none; background: transparent; cursor: pointer; color: var(--color-text-secondary);
-  transition: color .25s ease; white-space: nowrap;
-}
-.tab.active { color: #fff; }
-.tab:hover:not(.active) { color: var(--color-text-primary); }
-
-/* --- KPI cards --- */
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 0.5rem; }
-.kpi {
-  background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 0.85rem 1rem;
-  opacity: 0; transform: translateY(10px) scale(.98);
-  transition: transform .25s ease, box-shadow .25s ease, opacity .45s ease, translate .45s ease;
-  transition-delay: 0s;
-  cursor: default;
-}
-.kpi.visible { opacity: 1; transform: translateY(0) scale(1); }
-.kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.10); }
-.kpi-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; }
-.kpi-value {
-  font-size: 22px; font-weight: 600; color: var(--color-text-primary);
-  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-}
-.kpi-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 3px; }
-.kpi-delta { font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; transition: opacity .2s ease; }
-.up { color: #1D9E75; }
-.down { color: #D85A30; }
-.flat { color: var(--color-text-tertiary); }
-
-/* --- Chart cards --- */
-.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; margin-bottom: 1rem; }
-.chart-card {
-  background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg);
-  padding: 1rem 1.25rem;
-  opacity: 0; transform: translateY(14px);
-  transition: opacity .55s ease, transform .55s ease, box-shadow .25s ease, border-color .25s ease;
-}
-.chart-card.visible { opacity: 1; transform: translateY(0); }
-.chart-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,0.08); border-color: var(--color-border-secondary); }
-.chart-card.updating .chart-wrap { opacity: 0.35; transition: opacity .2s ease; }
-.chart-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 0.75rem; }
-.chart-wrap { position: relative; width: 100%; transition: opacity .25s ease; }
-.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 11px; color: var(--color-text-secondary); }
-.legend span { display: flex; align-items: center; gap: 4px; }
-.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-</style>
-
-<div class="dash">
-  <h2 class="sr-only">Dashboard Ekonomi dan Digital Sulawesi Selatan 2015â€“2024</h2>
-  <div class="header">
-    <h1>Dashboard Sulawesi Selatan</h1>
-    <p>Indikator ekonomi, digital, dan sosial Â· 2015â€“2024</p>
-    <div class="header-bar" id="headerBar"></div>
-  </div>
-
-  <div class="tab-group" id="yearTabs"><div class="tab-pill" id="tabPill"></div></div>
-
-  <div class="kpi-grid" id="kpiGrid"></div>
-
-  <p class="section-title" data-dot="#378ADD">Ekonomi</p>
-  <div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-title">PDRB & Pertumbuhan Ekonomi</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#378ADD"></span>PDRB (Miliar Rp)</span>
-        <span><span class="legend-dot" style="background:#D85A30"></span>Pertumbuhan (%)</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="gdpChart" role="img" aria-label="Grafik PDRB dan pertumbuhan ekonomi Sulawesi Selatan 2015-2024">Data PDRB meningkat dari 250.802 miliar rupiah pada 2015 menjadi 396.141 miliar rupiah pada 2024.</canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">PDRB per Kapita (Ribu Rp)</div>
-      <div class="chart-wrap" style="height:220px"><canvas id="percapChart" role="img" aria-label="Grafik PDRB per kapita Sulawesi Selatan 2015-2024">PDRB per kapita meningkat dari 29.435 ribu rupiah pada 2015 menjadi 42.899 ribu rupiah pada 2024.</canvas></div>
-    </div>
-  </div>
-
-  <p class="section-title" data-dot="#1D9E75">Digital & Konektivitas</p>
-  <div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-title">Penetrasi Internet & Mobile (%)</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#1D9E75"></span>Internet</span>
-        <span><span class="legend-dot" style="background:#534AB7"></span>Mobile</span>
-        <span><span class="legend-dot" style="background:#D85A30"></span>Fixed Broadband</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="digitalChart" role="img" aria-label="Grafik penetrasi internet, mobile, dan broadband Sulawesi Selatan">Internet naik dari 21,37% ke 70,1%, mobile dari 56,21% ke 96,8%.</canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Kepemilikan Perangkat Rumah Tangga (%)</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#BA7517"></span>Smartphone</span>
-        <span><span class="legend-dot" style="background:#888780"></span>Komputer</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="deviceChart" role="img" aria-label="Kepemilikan smartphone dan komputer rumah tangga Sulawesi Selatan">Smartphone meningkat ke 96,67%, komputer relatif stabil di sekitar 22%.</canvas></div>
-    </div>
-  </div>
-
-  <p class="section-title" data-dot="#D85A30">Sosial & Sektoral</p>
-  <div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-title">Kemiskinan, Pengangguran & Urbanisasi (%)</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#D85A30"></span>Kemiskinan</span>
-        <span><span class="legend-dot" style="background:#E24B4A"></span>Pengangguran</span>
-        <span><span class="legend-dot" style="background:#378ADD"></span>Urbanisasi</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="socialChart" role="img" aria-label="Grafik kemiskinan, pengangguran, dan urbanisasi Sulawesi Selatan">Kemiskinan turun dari 9,39% ke 7,77%, urbanisasi naik dari 38,15% ke 48,3%.</canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">PDRB Sektor Perdagangan & Transportasi (Miliar Rp)</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#534AB7"></span>Perdagangan</span>
-        <span><span class="legend-dot" style="background:#1D9E75"></span>Transportasi</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="sectorChart" role="img" aria-label="PDRB sektor perdagangan dan transportasi Sulawesi Selatan">Sektor perdagangan naik dari 52.834 ke 104.580 miliar rupiah.</canvas></div>
-    </div>
-  </div>
-
-  <p class="section-title" data-dot="#BA7517">Pendidikan & SDM</p>
-  <div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-title">Indeks Pendidikan & Rata-rata Lama Sekolah</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#378ADD"></span>Indeks Pendidikan (%)</span>
-        <span><span class="legend-dot" style="background:#BA7517"></span>Lama Sekolah (Tahun)</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="eduChart" role="img" aria-label="Indeks pendidikan dan rata-rata lama sekolah Sulawesi Selatan">Indeks pendidikan naik dari 62,35% ke 66,61%, lama sekolah dari 7,64 ke 8,86 tahun.</canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Populasi (Ribu Jiwa) & Kemiskinan (%)</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#1D9E75"></span>Populasi</span>
-        <span><span class="legend-dot" style="background:#D85A30"></span>Kemiskinan</span>
-      </div>
-      <div class="chart-wrap" style="height:220px"><canvas id="popChart" role="img" aria-label="Populasi dan kemiskinan Sulawesi Selatan">Populasi tumbuh dari 8.520 ribu jiwa ke 9.463 ribu jiwa, kemiskinan menurun.</canvas></div>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
-const years = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024];
-const data = {
-  gdp: [250802.99,269401.31,288814.17,309156.19,330506.38,328154.57,343395.41,360912.82,377207.78,396141.74],
-  gdp_growth: [6.08,6.34,6.17,6.05,6.33,-3.28,3.46,3.93,3.37,3.9],
-  gdp_percap: [29435.92,31302.53,33234.11,35243.64,37474.29,36246.26,37501.45,38975.18,40290.12,42899.93],
-  internet: [21.37,24.26,30.35,37.09,43.91,49.59,59.69,64.14,66.95,70.1],
-  mobile: [56.21,60.30,90.97,91.51,92.21,94.19,94.85,95.4,96.15,96.8],
-  broadband: [1.87,2.15,3.42,4.89,6.12,7.54,8.92,10.21,11.45,12.80],
-  smartphone: [91.14,92.5,90.97,91.51,92.21,94.19,93.75,95.85,93.06,96.67],
-  komputer: [23.2,23.36,23.92,23.34,22.87,21.93,21.22,20.61,20.51,22.13],
-  poverty: [9.39,9.24,9.38,9.06,8.56,8.99,8.78,8.65,8.7,7.77],
-  unemployment: [5.95,4.8,5.61,4.94,4.62,6.31,5.72,4.51,4.33,4.19],
-  urbanization: [38.15,38.95,41.01,42.29,43.56,44.42,45.97,46.85,47.5,48.3],
-  trade: [52834,57120,61870,67632,73810,71264,76520,86413,95240,104580],
-  transport: [14872,16548,18214,20156,22480,18903,20871,24369,27852,30640],
-  edu_idx: [62.35,63.12,63.80,64.18,64.64,65.29,65.76,66.35,66.54,66.61],
-  school_yrs: [7.64,7.75,7.95,8.02,8.26,8.38,8.46,8.46,8.76,8.86],
-  population: [8520.8,8606.4,8690.3,8772.0,8851.2,9073.5,9139.5,9225.8,9362.3,9463.4],
-  ict_share: [7.92,8.13,10.52,11.99,10.99,10.84,6.39,5.25,6.86,6.93],
-  ict_export: [5298,4879,5033,5186,5034,5430,6743,7657,7538,7371]
-};
-
-const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-const tickColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-function baseOpts(yLabel) {
-  return {
-    responsive: true, maintainAspectRatio: false,
-    animation: { duration: reduceMotion ? 0 : 700, easing: 'easeOutCubic' },
-    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-    scales: {
-      x: { ticks: { color: tickColor, font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-      y: { ticks: { color: tickColor, font: { size: 11 } }, grid: { color: gridColor }, title: { display: !!yLabel, text: yLabel, color: tickColor, font: { size: 10 } } }
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Ekonomi, Digital & Sosial Sulawesi Selatan (2015-2024)</title>
+  <meta name="description" content="Dashboard pemantauan indikator makro ekonomi, digital, dan sosial Provinsi Sulawesi Selatan.">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+        }
+      }
     }
-  };
-}
-
-/* ---------- format helpers (id-ID style: koma sbg desimal) ---------- */
-function fmtID(n, dec) {
-  return n.toLocaleString('id-ID', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-}
-function signed(n, dec, unit) {
-  const s = n >= 0 ? '+' : '';
-  return s + fmtID(n, dec) + unit;
-}
-
-/* ---------- count-up animation ---------- */
-function animateValue(el, fromVal, toVal, dec, suffix, duration, prefix) {
-  prefix = prefix || '';
-  duration = reduceMotion ? 0 : (duration || 650);
-  if (duration === 0) { el.textContent = prefix + fmtID(toVal, dec) + suffix; el.dataset.current = toVal; return; }
-  const start = performance.now();
-  function tick(now) {
-    const t = Math.min((now - start) / duration, 1);
-    const eased = 1 - Math.pow(1 - t, 3);
-    const val = fromVal + (toVal - fromVal) * eased;
-    el.textContent = prefix + fmtID(val, dec) + suffix;
-    if (t < 1) requestAnimationFrame(tick);
-    else el.dataset.current = toVal;
-  }
-  requestAnimationFrame(tick);
-}
-
-/* ============================================================
-   ERA FILTER â€” definisi rentang tahun yang punya makna historis
-   ============================================================ */
-const eras = [
-  { id: 'all', label: 'Semua (2015â€“2024)', range: [0, 9] },
-  { id: 'pre', label: 'Pra-Pandemi', range: [0, 4] },
-  { id: 'covid', label: 'Masa Pandemi', range: [5, 6] },
-  { id: 'recovery', label: 'Pasca-Pandemi', range: [7, 9] }
-];
-
-const tabsEl = document.getElementById('yearTabs');
-const pillEl = document.getElementById('tabPill');
-eras.forEach(e => {
-  const btn = document.createElement('button');
-  btn.className = 'tab' + (e.id === 'all' ? ' active' : '');
-  btn.textContent = e.label;
-  btn.dataset.era = e.id;
-  btn.addEventListener('click', () => selectEra(e.id, btn));
-  tabsEl.appendChild(btn);
-});
-
-function movePill(btn) {
-  pillEl.style.width = btn.offsetWidth + 'px';
-  pillEl.style.left = btn.offsetLeft + 'px';
-}
-
-/* ---------- KPI definitions (dihitung ulang sesuai era) ---------- */
-const kpiSpecs = [
-  { id: 'gdp', label: y => `PDRB ${y}`, sub: 'Miliar Rupiah', dec: 1, prefix: 'Rp', suffix: ' T', val: i => data.gdp[i] / 1000,
-    delta: i => i > 0 ? { text: signed(data.gdp_growth[i], 2, '%'), up: data.gdp_growth[i] >= 0 } : null },
-  { id: 'percap', label: () => 'PDRB per Kapita', sub: 'Ribu Rupiah', dec: 1, suffix: ' Jt', val: i => data.gdp_percap[i] / 1000,
-    delta: i => i > 0 ? { text: signed((data.gdp_percap[i] - data.gdp_percap[i - 1]) / data.gdp_percap[i - 1] * 100, 2, '%'), up: data.gdp_percap[i] >= data.gdp_percap[i - 1] } : null },
-  { id: 'internet', label: y => `Internet ${y}`, sub: 'Penetrasi', dec: 2, suffix: '%', val: i => data.internet[i],
-    delta: i => i > 0 ? { text: signed(data.internet[i] - data.internet[i - 1], 2, 'pp'), up: data.internet[i] >= data.internet[i - 1] } : null },
-  { id: 'unemployment', label: y => `Pengangguran`, sub: `Tingkat ${y}`, dec: 2, suffix: '%', val: i => data.unemployment[i],
-    delta: i => i > 0 ? { text: signed(data.unemployment[i] - data.unemployment[i - 1], 2, 'pp'), up: data.unemployment[i] <= data.unemployment[i - 1] } : null },
-  { id: 'poverty', label: () => 'Kemiskinan', sub: y => `${y}`, dec: 2, suffix: '%', val: i => data.poverty[i],
-    delta: i => i > 0 ? { text: signed(data.poverty[i] - data.poverty[i - 1], 2, 'pp'), up: data.poverty[i] <= data.poverty[i - 1] } : null },
-  { id: 'urbanization', label: () => 'Urbanisasi', sub: y => `${y}`, dec: 2, suffix: '%', val: i => data.urbanization[i],
-    delta: i => i > 0 ? { text: signed(data.urbanization[i] - data.urbanization[i - 1], 2, 'pp'), up: data.urbanization[i] >= data.urbanization[i - 1] } : null },
-  { id: 'population', label: () => 'Populasi', sub: y => `Jiwa ${y}`, dec: 2, suffix: ' Jt', val: i => data.population[i] / 1000,
-    delta: i => i > 0 ? { text: signed((data.population[i] - data.population[i - 1]) / data.population[i - 1] * 100, 2, '%'), up: true } : null },
-  { id: 'mobile', label: () => 'Mobile', sub: 'Langganan', dec: 2, suffix: '%', val: i => data.mobile[i],
-    delta: i => i > 0 ? { text: signed(data.mobile[i] - data.mobile[i - 1], 2, 'pp'), up: data.mobile[i] >= data.mobile[i - 1] } : null }
-];
-
-const kpiGrid = document.getElementById('kpiGrid');
-kpiSpecs.forEach(spec => {
-  const card = document.createElement('div');
-  card.className = 'kpi';
-  card.id = 'kpi-' + spec.id;
-  card.innerHTML = `
-    <div class="kpi-label" data-label></div>
-    <div class="kpi-value" data-value data-current="0">0</div>
-    <div class="kpi-sub" data-sub></div>
-    <div class="kpi-delta" data-delta></div>`;
-  kpiGrid.appendChild(card);
-});
-
-function renderKpis(endIdx) {
-  const y = years[endIdx];
-  kpiSpecs.forEach(spec => {
-    const card = document.getElementById('kpi-' + spec.id);
-    const labelEl = card.querySelector('[data-label]');
-    const subEl = card.querySelector('[data-sub]');
-    const valEl = card.querySelector('[data-value]');
-    const deltaEl = card.querySelector('[data-delta]');
-    labelEl.textContent = typeof spec.label === 'function' ? spec.label(y) : spec.label;
-    subEl.textContent = typeof spec.sub === 'function' ? spec.sub(y) : spec.sub;
-    const target = spec.val(endIdx);
-    const from = parseFloat(valEl.dataset.current || 0);
-    animateValue(valEl, from, target, spec.dec, spec.suffix, undefined, spec.prefix);
-    const d = spec.delta(endIdx);
-    if (!d) {
-      deltaEl.textContent = 'Data awal periode';
-      deltaEl.className = 'kpi-delta flat';
-    } else {
-      deltaEl.textContent = (d.up ? 'â†‘ ' : 'â†“ ') + d.text + ' vs tahun lalu';
-      deltaEl.className = 'kpi-delta ' + (d.up ? 'up' : 'down');
+  </script>
+  
+  <!-- Google Fonts - Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
-  });
-}
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+    
+    /* Fade-in keyframe animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in-up {
+      opacity: 0;
+      animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    
+    /* Staggered animation classes */
+    .animation-delay-75 { animation-delay: 75ms; }
+    .animation-delay-100 { animation-delay: 100ms; }
+    .animation-delay-150 { animation-delay: 150ms; }
+    .animation-delay-200 { animation-delay: 200ms; }
+  </style>
+</head>
+<body class="bg-[#030712] text-slate-100 min-h-screen relative overflow-x-hidden antialiased pb-16">
+  
+  <!-- Gradient Glow Mesh Background -->
+  <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="absolute top-[250px] right-1/4 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+  
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+    
+    <!-- Title and Meta Header -->
+    <header class="mb-8 border-b border-slate-900 pb-6 animate-fade-in-up">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span> Portal Analitis
+            </span>
+            <span class="text-xs text-slate-500 font-medium">Bappeda & BPS Sulawesi Selatan</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-50 via-slate-100 to-indigo-200">
+            Dashboard Sulawesi Selatan
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1 font-medium flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-indigo-400"></i> Indikator Ekonomi, Digital, dan Sosial (2015–2024)
+          </p>
+        </div>
+      </div>
+    </header>
 
-/* ---------- chart registry: tiap chart tahu dataset key apa yang dipakai ---------- */
-const chartRegistry = [];
-function registerChart(chart, keys) { chartRegistry.push({ chart, keys }); return chart; }
+    <!-- Invisible Accessibility Landmark -->
+    <h2 class="sr-only">Dashboard Ekonomi dan Digital Sulawesi Selatan 2015–2024</h2>
+    
+    <!-- Dynamic Year Navigation Section -->
+    <div class="mb-6 animate-fade-in-up animation-delay-75">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Pilih Tahun Analisis</label>
+      <div class="flex gap-2 flex-wrap bg-slate-900/40 p-1.5 rounded-xl border border-slate-800/60 max-w-2xl" id="yearTabs">
+        <!-- Dynamically filled by JS -->
+      </div>
+    </div>
 
-function applyEra(range) {
-  const [s, e] = range;
-  const labels = years.slice(s, e + 1);
-  document.querySelectorAll('.chart-card').forEach(c => c.classList.add('updating'));
-  setTimeout(() => {
-    chartRegistry.forEach(({ chart, keys }) => {
-      chart.data.labels = labels;
-      keys.forEach((k, i) => { chart.data.datasets[i].data = data[k].slice(s, e + 1); });
-      chart.update();
+    <!-- Dynamic KPI Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 min-h-[220px]" id="kpiGrid">
+      <!-- Dynamically filled and animated by JS -->
+    </div>
+    
+    <!-- MAIN GRID SECTION -->
+    <main class="space-y-8 animate-fade-in-up animation-delay-150">
+      
+      <!-- EKONOMI -->
+      <section>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <i data-lucide="landmark" class="w-4 h-4 text-indigo-400"></i> Indikator Makro Ekonomi
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">PDRB & Pertumbuhan Ekonomi</h4>
+              <p class="text-xs text-slate-400 mb-3">Tren pertumbuhan PDRB atas dasar harga konstan</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]"></span>PDRB (Miliar Rp)
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-0.5 bg-orange-500 inline-block"></span>Pertumbuhan (%)
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="gdpChart" role="img" aria-label="Grafik PDRB dan pertumbuhan ekonomi Sulawesi Selatan 2015-2024"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">PDRB per Kapita</h4>
+              <p class="text-xs text-slate-400 mb-3">Nominal rata-rata pendapatan per kapita (Ribu Rp)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>PDRB per Kapita (Ribu Rp)
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="percapChart" role="img" aria-label="Grafik PDRB per kapita Sulawesi Selatan 2015-2024"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DIGITAL & KONEKTIVITAS -->
+      <section>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i> Digital & Konektivitas
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">Penetrasi Internet & Seluler</h4>
+              <p class="text-xs text-slate-400 mb-3">Persentase akses internet dan kepemilikan kartu seluler (%)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>Internet
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.5)]"></span>Mobile
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_6px_rgba(249,73,22,0.5)]"></span>Fixed Broadband
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="digitalChart" role="img" aria-label="Grafik penetrasi internet, mobile, dan broadband Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">Kepemilikan Perangkat Rumah Tangga</h4>
+              <p class="text-xs text-slate-400 mb-3">Persentase kepemilikan smartphone & komputer di tingkat rumah tangga</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]"></span>Smartphone
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-slate-500 shadow-[0_0_6px_rgba(100,116,139,0.5)]"></span>Komputer
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="deviceChart" role="img" aria-label="Kepemilikan smartphone dan komputer rumah tangga Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SOSIAL & SEKTORAL -->
+      <section>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <i data-lucide="users" class="w-4 h-4 text-indigo-400"></i> Sosial & Sektoral
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">Kemiskinan, Pengangguran & Urbanisasi</h4>
+              <p class="text-xs text-slate-400 mb-3">Persentase tingkat kemiskinan, pengangguran terbuka, dan laju urbanisasi (%)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_6px_rgba(249,73,22,0.5)]"></span>Kemiskinan
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]"></span>Pengangguran
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]"></span>Urbanisasi
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="socialChart" role="img" aria-label="Grafik kemiskinan, pengangguran, dan urbanisasi Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">PDRB Sektor Perdagangan & Transportasi</h4>
+              <p class="text-xs text-slate-400 mb-3">Realisasi nilai PDRB sektor perdagangan dan transportasi (Miliar Rp)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.5)]"></span>Perdagangan
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>Transportasi
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="sectorChart" role="img" aria-label="PDRB sektor perdagangan dan transportasi Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PENDIDIKAN & SDM -->
+      <section>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <i data-lucide="book-open" class="w-4 h-4 text-violet-400"></i> Pendidikan & SDM
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">Indeks Pendidikan & Rata-rata Lama Sekolah</h4>
+              <p class="text-xs text-slate-400 mb-3">Pencapaian indeks pendidikan (%) dan lama sekolah (Tahun)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]"></span>Indeks Pendidikan (%)
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]"></span>Lama Sekolah (Tahun)
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="eduChart" role="img" aria-label="Indeks pendidikan dan rata-rata lama sekolah Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h4 class="text-sm font-bold text-slate-200 mb-1">Populasi & Kemiskinan</h4>
+              <p class="text-xs text-slate-400 mb-3">Hubungan jumlah penduduk (Ribu Jiwa) dengan tingkat kemiskinan (%)</p>
+              <div class="flex flex-wrap gap-2 mb-2">
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>Populasi
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/40 px-2.5 py-1 rounded-full text-[10px] font-semibold text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_6px_rgba(249,73,22,0.5)]"></span>Kemiskinan
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-[220px]">
+              <canvas id="popChart" role="img" aria-label="Populasi dan kemiskinan Sulawesi Selatan"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script>
+    // Initialize Lucide Icons on load
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
     });
-    document.querySelectorAll('.chart-card').forEach(c => c.classList.remove('updating'));
-  }, 160);
-  renderKpis(e);
-}
 
-function selectEra(id, btn) {
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  movePill(btn);
-  const era = eras.find(x => x.id === id);
-  applyEra(era.range);
-}
+    const years = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024];
+    const data = {
+      gdp: [250802.99,269401.31,288814.17,309156.19,330506.38,328154.57,343395.41,360912.82,377207.78,396141.74],
+      gdp_growth: [6.08,6.34,6.17,6.05,6.33,-3.28,3.46,3.93,3.37,3.9],
+      gdp_percap: [29435.92,31302.53,33234.11,35243.64,37474.29,36246.26,37501.45,38975.18,40290.12,42899.93],
+      internet: [21.37,24.26,30.35,37.09,43.91,49.59,59.69,64.14,66.95,70.1],
+      mobile: [56.21,60.30,90.97,91.51,92.21,94.19,94.85,95.4,96.15,96.8],
+      broadband: [1.87,2.15,3.42,4.89,6.12,7.54,8.92,10.21,11.45,12.80],
+      smartphone: [91.14,92.5,90.97,91.51,92.21,94.19,93.75,95.85,93.06,96.67],
+      komputer: [23.2,23.36,23.92,23.34,22.87,21.93,21.22,20.61,20.51,22.13],
+      poverty: [9.39,9.24,9.38,9.06,8.56,8.99,8.78,8.65,8.7,7.77],
+      unemployment: [5.95,4.8,5.61,4.94,4.62,6.31,5.72,4.51,4.33,4.19],
+      urbanization: [38.15,38.95,41.01,42.29,43.56,44.42,45.97,46.85,47.5,48.3],
+      trade: [52834,57120,61870,67632,73810,71264,76520,86413,95240,104580],
+      transport: [14872,16548,18214,20156,22480,18903,20871,24369,27852,30640],
+      edu_idx: [62.35,63.12,63.80,64.18,64.64,65.29,65.76,66.35,66.54,66.61],
+      school_yrs: [7.64,7.75,7.95,8.02,8.26,8.38,8.46,8.46,8.76,8.86],
+      population: [8520.8,8606.4,8690.3,8772.0,8851.2,9073.5,9139.5,9225.8,9362.3,9463.4],
+      ict_share: [7.92,8.13,10.52,11.99,10.99,10.84,6.39,5.25,6.86,6.93],
+      ict_export: [5298,4879,5033,5186,5034,5430,6743,7657,7538,7371]
+    };
+    
+    function selectYear(year, btn) {
+      document.querySelectorAll('.tab').forEach(b => {
+        b.className = "tab text-xs font-semibold py-1.5 px-4 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 bg-slate-900/60 border border-slate-800/80";
+      });
+      if (btn) {
+        btn.className = "tab text-xs font-semibold py-1.5 px-4 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-indigo-500/20 shadow-md transition-all duration-200 border border-transparent";
+      }
 
-/* ===================== charts ===================== */
-registerChart(new Chart(document.getElementById('gdpChart'), {
-  data: {
-    labels: years,
-    datasets: [
-      { type: 'bar', label: 'PDRB', data: data.gdp, backgroundColor: 'rgba(55,138,221,0.25)', borderColor: '#378ADD', borderWidth: 1.5, yAxisID: 'y' },
-      { type: 'line', label: 'Pertumbuhan', data: data.gdp_growth, borderColor: '#D85A30', borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: 'y2', borderDash: [4,3] }
-    ]
-  },
-  options: { ...baseOpts(), responsive: true, maintainAspectRatio: false,
-    animation: { duration: reduceMotion ? 0 : 700, easing: 'easeOutCubic' },
-    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-    scales: {
-      x: { ticks: { color: tickColor, font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-      y: { ticks: { color: tickColor, font: { size: 10 }, callback: v => (v/1000).toFixed(0)+'rb' }, grid: { color: gridColor }, position: 'left' },
-      y2: { ticks: { color: '#D85A30', font: { size: 10 }, callback: v => v+'%' }, grid: { display: false }, position: 'right' }
+      const idx = year - 2015;
+      const isFirst = (idx === 0);
+
+      const getPctDelta = (curr, prev) => {
+        if (isFirst) return { text: '0.0%', up: true };
+        const diff = ((curr - prev) / prev * 100);
+        return {
+          text: (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%',
+          up: diff >= 0
+        };
+      };
+
+      const getPpDelta = (curr, prev, badMetric = false) => {
+        if (isFirst) return { text: '0.00pp', up: true };
+        const diff = curr - prev;
+        return {
+          text: (diff >= 0 ? '+' : '') + diff.toFixed(2) + 'pp',
+          up: badMetric ? (diff <= 0) : (diff >= 0)
+        };
+      };
+
+      const kpis = [
+        {
+          label: `PDRB ${year}`,
+          value: `Rp ${(data.gdp[idx] / 1000).toFixed(1)} T`,
+          sub: 'Miliar Rupiah',
+          delta: (isFirst ? '0.0%' : (data.gdp_growth[idx] >= 0 ? '+' : '') + data.gdp_growth[idx].toFixed(1) + '%'),
+          up: data.gdp_growth[idx] >= 0,
+          icon: 'landmark',
+          iconColor: 'text-blue-400 bg-blue-500/10'
+        },
+        {
+          label: 'PDRB per Kapita',
+          value: `${(data.gdp_percap[idx] / 1000).toFixed(1)} Jt`,
+          sub: 'Ribu Rupiah',
+          delta: getPctDelta(data.gdp_percap[idx], data.gdp_percap[idx - 1]).text,
+          up: getPctDelta(data.gdp_percap[idx], data.gdp_percap[idx - 1]).up,
+          icon: 'wallet',
+          iconColor: 'text-emerald-400 bg-emerald-500/10'
+        },
+        {
+          label: `Internet ${year}`,
+          value: `${data.internet[idx].toFixed(1)}%`,
+          sub: 'Penetrasi',
+          delta: getPpDelta(data.internet[idx], data.internet[idx - 1]).text,
+          up: getPpDelta(data.internet[idx], data.internet[idx - 1]).up,
+          icon: 'globe',
+          iconColor: 'text-sky-400 bg-sky-500/10'
+        },
+        {
+          label: 'Pengangguran',
+          value: `${data.unemployment[idx].toFixed(2)}%`,
+          sub: `Tingkat ${year}`,
+          delta: getPpDelta(data.unemployment[idx], data.unemployment[idx - 1], true).text,
+          up: getPpDelta(data.unemployment[idx], data.unemployment[idx - 1], true).up,
+          icon: 'user-x',
+          iconColor: 'text-rose-400 bg-rose-500/10'
+        },
+        {
+          label: 'Kemiskinan',
+          value: `${data.poverty[idx].toFixed(2)}%`,
+          sub: `Tingkat ${year}`,
+          delta: getPpDelta(data.poverty[idx], data.poverty[idx - 1], true).text,
+          up: getPpDelta(data.poverty[idx], data.poverty[idx - 1], true).up,
+          icon: 'trending-down',
+          iconColor: 'text-rose-400 bg-rose-500/10'
+        },
+        {
+          label: 'Urbanisasi',
+          value: `${data.urbanization[idx].toFixed(1)}%`,
+          sub: `Rasio ${year}`,
+          delta: getPpDelta(data.urbanization[idx], data.urbanization[idx - 1]).text,
+          up: getPpDelta(data.urbanization[idx], data.urbanization[idx - 1]).up,
+          icon: 'building-2',
+          iconColor: 'text-indigo-400 bg-indigo-500/10'
+        },
+        {
+          label: 'Populasi',
+          value: `${(data.population[idx] / 1000).toFixed(2)} Jt`,
+          sub: 'Jiwa',
+          delta: getPctDelta(data.population[idx], data.population[idx - 1]).text,
+          up: getPctDelta(data.population[idx], data.population[idx - 1]).up,
+          icon: 'users',
+          iconColor: 'text-amber-400 bg-amber-500/10'
+        },
+        {
+          label: 'Mobile',
+          value: `${data.mobile[idx].toFixed(1)}%`,
+          sub: 'Langganan Seluler',
+          delta: getPpDelta(data.mobile[idx], data.mobile[idx - 1]).text,
+          up: getPpDelta(data.mobile[idx], data.mobile[idx - 1]).up,
+          icon: 'smartphone',
+          iconColor: 'text-violet-400 bg-violet-500/10'
+        }
+      ];
+
+      const grid = document.getElementById('kpiGrid');
+      grid.innerHTML = '';
+      kpis.forEach((k, kIdx) => {
+        const isUp = k.up;
+        const deltaColor = isUp ? 'text-emerald-400 animate-pulse' : 'text-rose-400';
+        const deltaIcon = isUp ? '▲' : '▼';
+        
+        grid.innerHTML += `
+          <div class="kpi bg-slate-900/40 backdrop-blur-md border border-slate-800/60 rounded-2xl p-5 hover:border-slate-700/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 relative overflow-hidden group animate-fade-in-up" style="animation-delay: ${kIdx * 40}ms">
+            <div class="absolute top-0 right-0 w-20 h-20 bg-slate-700/5 rounded-full blur-xl group-hover:bg-slate-700/10 transition-all duration-300"></div>
+            <div class="flex justify-between items-start mb-3">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${k.label}</p>
+              <div class="p-2 rounded-lg ${k.iconColor}">
+                <i data-lucide="${k.icon}" class="w-3.5 h-3.5"></i>
+              </div>
+            </div>
+            <p class="text-2xl font-bold text-slate-100 mb-0.5 tracking-tight">${k.value}</p>
+            <p class="text-[10px] text-slate-500 font-medium">${k.sub}</p>
+            <div class="text-[10px] font-semibold ${deltaColor} mt-2 flex items-center gap-1">
+              <span>${deltaIcon}</span> ${k.delta} <span class="text-slate-500 font-normal">vs thn lalu</span>
+            </div>
+          </div>
+        `;
+      });
+      
+      lucide.createIcons();
     }
-  }
-}), ['gdp', 'gdp_growth']);
 
-registerChart(new Chart(document.getElementById('percapChart'), {
-  type: 'line',
-  data: { labels: years, datasets: [{ data: data.gdp_percap, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.1)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true }] },
-  options: { ...baseOpts('Ribu Rp') }
-}), ['gdp_percap']);
+    const gridColor = 'rgba(148, 163, 184, 0.05)';
+    const tickColor = '#94a3b8';
+    const chartFont = { family: "'Plus Jakarta Sans', sans-serif", size: 10, weight: '500' };
 
-registerChart(new Chart(document.getElementById('digitalChart'), {
-  type: 'line',
-  data: { labels: years, datasets: [
-    { label: 'Internet', data: data.internet, borderColor: '#1D9E75', borderWidth: 2, pointRadius: 2, tension: 0.3 },
-    { label: 'Mobile', data: data.mobile, borderColor: '#534AB7', borderWidth: 2, pointRadius: 2, tension: 0.3 },
-    { label: 'Broadband', data: data.broadband, borderColor: '#D85A30', borderWidth: 2, pointRadius: 2, tension: 0.3 }
-  ]},
-  options: { ...baseOpts('%') }
-}), ['internet', 'mobile', 'broadband']);
-
-registerChart(new Chart(document.getElementById('deviceChart'), {
-  type: 'line',
-  data: { labels: years, datasets: [
-    { label: 'Smartphone', data: data.smartphone, borderColor: '#BA7517', borderWidth: 2, pointRadius: 2, tension: 0.3 },
-    { label: 'Komputer', data: data.komputer, borderColor: '#888780', borderWidth: 2, pointRadius: 2, tension: 0.3 }
-  ]},
-  options: { ...baseOpts('%') }
-}), ['smartphone', 'komputer']);
-
-registerChart(new Chart(document.getElementById('socialChart'), {
-  type: 'line',
-  data: { labels: years, datasets: [
-    { label: 'Kemiskinan', data: data.poverty, borderColor: '#D85A30', borderWidth: 2, pointRadius: 2, tension: 0.3 },
-    { label: 'Pengangguran', data: data.unemployment, borderColor: '#E24B4A', borderWidth: 2, pointRadius: 2, tension: 0.3, borderDash: [4,3] },
-    { label: 'Urbanisasi', data: data.urbanization, borderColor: '#378ADD', borderWidth: 2, pointRadius: 2, tension: 0.3 }
-  ]},
-  options: { ...baseOpts('%') }
-}), ['poverty', 'unemployment', 'urbanization']);
-
-registerChart(new Chart(document.getElementById('sectorChart'), {
-  type: 'bar',
-  data: { labels: years, datasets: [
-    { label: 'Perdagangan', data: data.trade, backgroundColor: 'rgba(83,74,183,0.7)', borderWidth: 0 },
-    { label: 'Transportasi', data: data.transport, backgroundColor: 'rgba(29,158,117,0.7)', borderWidth: 0 }
-  ]},
-  options: { ...baseOpts('Miliar Rp'), scales: {
-    x: { stacked: false, ticks: { color: tickColor, font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-    y: { ticks: { color: tickColor, font: { size: 10 }, callback: v => (v/1000).toFixed(0)+'rb' }, grid: { color: gridColor } }
-  }}
-}), ['trade', 'transport']);
-
-registerChart(new Chart(document.getElementById('eduChart'), {
-  data: { labels: years, datasets: [
-    { type: 'line', label: 'Indeks', data: data.edu_idx, borderColor: '#378ADD', borderWidth: 2, pointRadius: 2, tension: 0.3, yAxisID: 'y' },
-    { type: 'bar', label: 'Lama Sekolah', data: data.school_yrs, backgroundColor: 'rgba(186,117,23,0.25)', borderColor: '#BA7517', borderWidth: 1.5, yAxisID: 'y2' }
-  ]},
-  options: { responsive: true, maintainAspectRatio: false,
-    animation: { duration: reduceMotion ? 0 : 700, easing: 'easeOutCubic' },
-    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-    scales: {
-      x: { ticks: { color: tickColor, font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-      y: { ticks: { color: '#378ADD', font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridColor }, position: 'left', min: 60 },
-      y2: { ticks: { color: '#BA7517', font: { size: 10 }, callback: v => v+' th' }, grid: { display: false }, position: 'right', min: 6 }
+    function baseOpts(yLabel) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            titleColor: '#f1f5f9',
+            bodyColor: '#f1f5f9',
+            borderColor: 'rgba(255, 255, 255, 0.08)',
+            borderWidth: 1,
+            padding: 10,
+            bodyFont: chartFont,
+            titleFont: { family: "'Plus Jakarta Sans', sans-serif", weight: 'bold', size: 11 },
+            mode: 'index',
+            intersect: false
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: tickColor, font: chartFont, autoSkip: true, maxTicksLimit: 6 },
+            grid: { display: false }
+          },
+          y: {
+            ticks: { color: tickColor, font: chartFont },
+            grid: { color: gridColor },
+            title: { display: !!yLabel, text: yLabel, color: tickColor, font: { ...chartFont, size: 9 } }
+          }
+        }
+      };
     }
-  }
-}), ['edu_idx', 'school_yrs']);
-
-registerChart(new Chart(document.getElementById('popChart'), {
-  data: { labels: years, datasets: [
-    { type: 'bar', label: 'Populasi', data: data.population, backgroundColor: 'rgba(29,158,117,0.2)', borderColor: '#1D9E75', borderWidth: 1.5, yAxisID: 'y' },
-    { type: 'line', label: 'Kemiskinan', data: data.poverty, borderColor: '#D85A30', borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: 'y2' }
-  ]},
-  options: { responsive: true, maintainAspectRatio: false,
-    animation: { duration: reduceMotion ? 0 : 700, easing: 'easeOutCubic' },
-    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-    scales: {
-      x: { ticks: { color: tickColor, font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-      y: { ticks: { color: '#1D9E75', font: { size: 10 }, callback: v => (v/1000).toFixed(1)+'jt' }, grid: { color: gridColor }, position: 'left', min: 8000 },
-      y2: { ticks: { color: '#D85A30', font: { size: 10 }, callback: v => v+'%' }, grid: { display: false }, position: 'right' }
-    }
-  }
-}), ['population', 'poverty']);
-
-/* ---------- init: KPI awal, pill posisi awal, header bar ---------- */
-renderKpis(9);
-requestAnimationFrame(() => {
-  const firstTab = tabsEl.querySelector('.tab');
-  if (firstTab) movePill(firstTab);
-});
-window.addEventListener('resize', () => {
-  const active = tabsEl.querySelector('.tab.active');
-  if (active) movePill(active);
-});
-
-requestAnimationFrame(() => {
-  document.getElementById('headerBar').classList.add('grow');
-});
-
-/* ---------- scroll reveal: section title, kpi cards, chart cards ---------- */
-const revealTargets = [
-  ...document.querySelectorAll('.section-title'),
-  ...document.querySelectorAll('.chart-card')
-];
-const io = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-      io.unobserve(entry.target);
-    }
-  });
-}, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-revealTargets.forEach(el => io.observe(el));
-
-/* stagger KPI cards on first load */
-document.querySelectorAll('.kpi').forEach((card, i) => {
-  card.style.transitionDelay = (i * 60) + 'ms';
-  requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('visible')));
-});
-
-/* stagger chart cards within each grid */
-document.querySelectorAll('.chart-grid').forEach(grid => {
-  [...grid.children].forEach((card, i) => { card.style.transitionDelay = (i * 90) + 'ms'; });
-});
-
-/* section title dot color + reveal */
-document.querySelectorAll('.section-title[data-dot]').forEach(el => {
-  el.style.setProperty('--dot-color', el.dataset.dot);
-});
-</script>
+    
+    // 1. GDP Chart
+    new Chart(document.getElementById('gdpChart'), {
+      data: {
+        labels: years,
+        datasets: [
+          { type: 'bar', label: 'PDRB (Miliar Rp)', data: data.gdp, backgroundColor: 'rgba(59, 130, 246, 0.15)', borderColor: '#3b82f6', borderWidth: 1.5, yAxisID: 'y', borderRadius: 4 },
+          { type: 'line', label: 'Pertumbuhan (%)', data: data.gdp_growth, borderColor: '#f97316', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35, yAxisID: 'y2', borderDash: [5, 4] }
+        ]
+      },
+      options: {
+        ...baseOpts(),
+        scales: {
+          x: { ticks: { color: tickColor, font: chartFont, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: tickColor, font: chartFont, callback: v => (v/1000).toFixed(0)+'rb' }, grid: { color: gridColor }, position: 'left' },
+          y2: { ticks: { color: '#f97316', font: chartFont, callback: v => v+'%' }, grid: { display: false }, position: 'right' }
+        }
+      }
+    });
+    
+    // 2. Percap Chart
+    new Chart(document.getElementById('percapChart'), {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [{
+          label: 'PDRB per Kapita',
+          data: data.gdp_percap,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.05)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#030712',
+          pointBorderWidth: 2,
+          tension: 0.35,
+          fill: true
+        }]
+      },
+      options: { ...baseOpts('Ribu Rp') }
+    });
+    
+    // 3. Digital Chart
+    new Chart(document.getElementById('digitalChart'), {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Internet', data: data.internet, borderColor: '#10b981', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 },
+          { label: 'Mobile', data: data.mobile, borderColor: '#6366f1', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 },
+          { label: 'Broadband', data: data.broadband, borderColor: '#f97316', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 }
+        ]
+      },
+      options: { ...baseOpts('%') }
+    });
+    
+    // 4. Device Chart
+    new Chart(document.getElementById('deviceChart'), {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Smartphone', data: data.smartphone, borderColor: '#f59e0b', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 },
+          { label: 'Komputer', data: data.komputer, borderColor: '#64748b', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 }
+        ]
+      },
+      options: { ...baseOpts('%') }
+    });
+    
+    // 5. Social Chart
+    new Chart(document.getElementById('socialChart'), {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Kemiskinan', data: data.poverty, borderColor: '#f97316', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 },
+          { label: 'Pengangguran', data: data.unemployment, borderColor: '#ef4444', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35, borderDash: [4, 3] },
+          { label: 'Urbanisasi', data: data.urbanization, borderColor: '#3b82f6', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35 }
+        ]
+      },
+      options: { ...baseOpts('%') }
+    });
+    
+    // 6. Sector Chart
+    new Chart(document.getElementById('sectorChart'), {
+      type: 'bar',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Perdagangan', data: data.trade, backgroundColor: 'rgba(99, 102, 241, 0.8)', hoverBackgroundColor: '#6366f1', borderRadius: 4, borderWidth: 0 },
+          { label: 'Transportasi', data: data.transport, backgroundColor: 'rgba(16, 185, 129, 0.8)', hoverBackgroundColor: '#10b981', borderRadius: 4, borderWidth: 0 }
+        ]
+      },
+      options: {
+        ...baseOpts('Miliar Rp'),
+        scales: {
+          x: { ticks: { color: tickColor, font: chartFont, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: tickColor, font: chartFont, callback: v => (v/1000).toFixed(0)+'rb' }, grid: { color: gridColor } }
+        }
+      }
+    });
+    
+    // 7. Edu Chart
+    new Chart(document.getElementById('eduChart'), {
+      data: {
+        labels: years,
+        datasets: [
+          { type: 'line', label: 'Indeks', data: data.edu_idx, borderColor: '#3b82f6', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35, yAxisID: 'y' },
+          { type: 'bar', label: 'Lama Sekolah', data: data.school_yrs, backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#f59e0b', borderWidth: 1.5, yAxisID: 'y2', borderRadius: 4 }
+        ]
+      },
+      options: {
+        ...baseOpts(),
+        scales: {
+          x: { ticks: { color: tickColor, font: chartFont, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: '#3b82f6', font: chartFont, callback: v => v+'%' }, grid: { color: gridColor }, position: 'left', min: 60 },
+          y2: { ticks: { color: '#f59e0b', font: chartFont, callback: v => v+' th' }, grid: { display: false }, position: 'right', min: 6 }
+        }
+      }
+    });
+    
+    // 8. Pop Chart
+    new Chart(document.getElementById('popChart'), {
+      data: {
+        labels: years,
+        datasets: [
+          { type: 'bar', label: 'Populasi', data: data.population, backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981', borderWidth: 1.5, yAxisID: 'y', borderRadius: 4 },
+          { type: 'line', label: 'Kemiskinan', data: data.poverty, borderColor: '#f97316', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: 0.35, yAxisID: 'y2' }
+        ]
+      },
+      options: {
+        ...baseOpts(),
+        scales: {
+          x: { ticks: { color: tickColor, font: chartFont, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: '#10b981', font: chartFont, callback: v => (v/1000).toFixed(1)+'jt' }, grid: { color: gridColor }, position: 'left', min: 8000 },
+          y2: { ticks: { color: '#f97316', font: chartFont, callback: v => v+'%' }, grid: { display: false }, position: 'right' }
+        }
+      }
+    });
+    
+    // Generate Year Tabs and Activate 2024
+    const yearTabs = document.getElementById('yearTabs');
+    years.forEach(yr => {
+      yearTabs.innerHTML += `<button class="tab text-xs font-semibold py-1.5 px-4 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 bg-slate-900/60 border border-slate-800/80" onclick="selectYear(${yr}, this)">${yr}</button>`;
+    });
+    const tabButtons = yearTabs.querySelectorAll('.tab');
+    selectYear(2024, tabButtons[tabButtons.length - 1]);
+  </script>
+</body>
+</html>
